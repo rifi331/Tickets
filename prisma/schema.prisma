@@ -1,0 +1,44 @@
+// Prisma schema for the Tickets task-note app.
+// See https://pris.ly/d/prisma-schema for documentation.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+model Note {
+  id        String      @id @default(uuid())
+  title     String      @default("Untitled Note")
+  assignee  String?
+  status    TaskStatus  @default(OPEN)
+  startDate DateTime?
+  dueDate   DateTime?
+  content   String?     @db.Text
+  images    NoteImage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model NoteImage {
+  id        String   @id @default(uuid())
+  noteId    String
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  mimeType  String
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([noteId])
+}
