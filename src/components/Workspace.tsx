@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TaskStatus } from "@prisma/client";
 import type { NoteDetail, NoteSummary } from "@/lib/types";
+import { normalizeNote, normalizeNoteDetail } from "@/lib/types";
 import StatusBadge from "./StatusBadge";
 import NoteDetailPanel from "./NoteDetailPanel";
 
@@ -13,7 +14,9 @@ export default function Workspace({
   initialNotes: NoteSummary[];
   user: string;
 }) {
-  const [notes, setNotes] = useState<NoteSummary[]>(initialNotes);
+  const [notes, setNotes] = useState<NoteSummary[]>(
+    () => initialNotes.map(normalizeNote)
+  );
   const [selectedId, setSelectedId] = useState<string | null>(
     initialNotes[0]?.id ?? null
   );
@@ -22,13 +25,13 @@ export default function Workspace({
   const [creating, setCreating] = useState(false);
 
   // Re-sort notes by updatedAt desc whenever they change.
-  const sortedNotes = useMemo(
-    () =>
-      [...notes].sort(
-        (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
-      ),
-    [notes]
-  );
+  const sortedNotes = useMemo(() => {
+    return [...notes].sort((a, b) => {
+      const ta = new Date(a.updatedAt).getTime();
+      const tb = new Date(b.updatedAt).getTime();
+      return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
+    });
+  }, [notes]);
 
   // Keep selection valid.
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function Workspace({
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { note: NoteDetail };
-        if (!cancelled) setDetail(data.note);
+        if (!cancelled) setDetail(normalizeNoteDetail(data.note));
       } catch (err) {
         console.error("Failed to load note:", err);
         if (!cancelled) setDetail(null);
@@ -92,7 +95,7 @@ export default function Workspace({
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { note: NoteSummary };
-      setNotes((prev) => [data.note, ...prev]);
+      setNotes((prev) => [normalizeNote(data.note), ...prev]);
       setSelectedId(data.note.id);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to create note");
@@ -196,7 +199,12 @@ export default function Workspace({
                             {n.dueDate && (
                               <span className="text-[11px] text-slate-400">
                                 due{" "}
-                                {new Date(n.dueDate).toLocaleDateString()}
+                                {(() => {
+                                  const d = new Date(n.dueDate);
+                                  return Number.isNaN(d.getTime())
+                                    ? ""
+                                    : d.toLocaleDateString();
+                                })()}
                               </span>
                             )}
                           </div>

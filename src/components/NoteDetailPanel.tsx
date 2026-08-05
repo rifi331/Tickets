@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { TaskStatus } from "@prisma/client";
 import type { NoteDetail } from "@/lib/types";
+import { normalizeNote } from "@/lib/types";
 import {
   TASK_STATUSES,
   STATUS_META,
@@ -28,6 +29,8 @@ export default function NoteDetailPanel({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const titleRef = useRef<HTMLInputElement>(null);
+
   // Reset local field state whenever a different note is selected.
   useEffect(() => {
     setTitle(note.title);
@@ -36,6 +39,16 @@ export default function NoteDetailPanel({
     setStartDate(toDateInputValue(note.startDate));
     setDueDate(toDateInputValue(note.dueDate));
     setSaveError(null);
+    // Auto-focus + select the title for freshly-created notes so the user can
+    // type a title immediately. Don't steal focus for existing notes.
+    if (note.title === "Untitled Note" && titleRef.current) {
+      const el = titleRef.current;
+      const t = setTimeout(() => {
+        el.focus();
+        el.select();
+      }, 0);
+      return () => clearTimeout(t);
+    }
   }, [note.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced autosave for metadata fields.
@@ -58,14 +71,15 @@ export default function NoteDetailPanel({
           throw new Error(d?.error || `HTTP ${res.status}`);
         }
         const { note: updated } = (await res.json()) as { note: NoteDetail };
+        const norm = normalizeNote(updated);
         setLastSaved(new Date());
         onMetaChanged({
-          title: updated.title,
-          assignee: updated.assignee,
-          status: updated.status,
-          startDate: updated.startDate,
-          dueDate: updated.dueDate,
-          updatedAt: updated.updatedAt,
+          title: norm.title,
+          assignee: norm.assignee,
+          status: norm.status,
+          startDate: norm.startDate,
+          dueDate: norm.dueDate,
+          updatedAt: norm.updatedAt,
         });
       } catch (err) {
         setSaveError(err instanceof Error ? err.message : "Save failed");
@@ -124,7 +138,7 @@ export default function NoteDetailPanel({
           }
           const { note: updated } = (await res.json()) as { note: NoteDetail };
           setLastSaved(new Date());
-          onMetaChanged({ updatedAt: updated.updatedAt });
+          onMetaChanged({ updatedAt: normalizeNote(updated).updatedAt });
         } catch (err) {
           setSaveError(err instanceof Error ? err.message : "Save failed");
         } finally {
@@ -181,6 +195,7 @@ export default function NoteDetailPanel({
       <div className="px-6 pt-5 pb-3 border-b border-slate-200">
         <div className="flex items-start gap-3">
           <input
+            ref={titleRef}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleBlurSave}

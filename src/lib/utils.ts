@@ -44,12 +44,26 @@ export function parseDate(value: string | null | undefined): Date | null {
   return d;
 }
 
-/** Convert a Date (or null) to an ISO string suitable for <input type="date">. */
-export function toDateInputValue(d: Date | null): string {
-  if (!d) return "";
-  // Use the local date portion only (YYYY-MM-DD).
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+/**
+ * Coerce a value that may be a Date, an ISO string, or null/undefined into a
+ * Date | null. fetch().json() deserializes dates to ISO strings, so any data
+ * crossing a fetch boundary must be normalized before calling Date methods.
+ */
+export function toDate(value: Date | string | null | undefined): Date | null {
+  if (value == null || value === "") return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Convert a Date (or ISO string, or null) to YYYY-MM-DD for <input type="date">. */
+export function toDateInputValue(
+  d: Date | string | null | undefined
+): string {
+  const date = toDate(d);
+  if (!date) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }

@@ -7,7 +7,7 @@ track team task notes and details.
 - **Editor:** TipTap rich-text editor with paste / drag-and-drop image uploads
 - **Auth:** Single-user login against `APP_USERNAME` / `APP_PASSWORD`, cookie session, route-protecting middleware
 - **Runs on port `30002`**
-- **Current version:** `v0.1.1`
+- **Current version:** `v0.1.2`
 
 ## Layout
 
@@ -58,13 +58,13 @@ npm run dev                # http://localhost:30002
 ## Docker
 
 ```bash
-docker build -t ghcr.io/rifi331/tickets:v0.1.1 .
+docker build -t ghcr.io/rifi331/tickets:v0.1.2 .
 docker run -p 30002:30002 \
   -e DATABASE_URL="postgresql://..." \
   -e APP_USERNAME=admin \
   -e APP_PASSWORD=secret \
   -e SESSION_SECRET="long-random-32+chars" \
-  ghcr.io/rifi331/tickets:v0.1.1
+  ghcr.io/rifi331/tickets:v0.1.2
 ```
 
 The container entrypoint runs `prisma migrate deploy` before starting Next.js.
@@ -72,7 +72,7 @@ The container entrypoint runs `prisma migrate deploy` before starting Next.js.
 ## CI
 
 `.github/workflows/deploy-ghcr.yml` builds the image on every push to `main`
-and publishes to `ghcr.io/rifi331/tickets:v0.1.1` (and `:latest`).
+and publishes to `ghcr.io/rifi331/tickets:v0.1.2` (and `:latest`).
 
 ## Versioning
 

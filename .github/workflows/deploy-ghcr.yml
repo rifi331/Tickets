@@ -9,7 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: rifi331/tickets
-  IMAGE_TAG: v0.1.1
+  IMAGE_TAG: v0.1.2
 
 jobs:
   build-and-push:
