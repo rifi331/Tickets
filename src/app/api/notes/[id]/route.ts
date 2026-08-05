@@ -5,6 +5,7 @@ import {
   isTaskStatus,
   json,
   parseDate,
+  extractReferencedImageIds,
 } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -75,16 +76,45 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return errorJson("No valid fields to update.", 400);
   }
 
+  // When content changes, garbage-collect NoteImage rows that are no longer
+  // referenced by the note's HTML. This prevents DB/storage bloat from images
+  // that were pasted in and later deleted in the editor.
+  const contentChanged = "content" in data;
+
   try {
-    const note = await prisma.note.update({
-      where: { id: params.id },
-      data,
-      include: {
-        images: {
-          select: { id: true, mimeType: true, createdAt: true },
-          orderBy: { createdAt: "asc" },
+    const note = await prisma.$transaction(async (tx) => {
+      const updated = await tx.note.update({
+        where: { id: params.id },
+        data,
+        include: {
+          images: {
+            select: { id: true, mimeType: true, createdAt: true },
+            orderBy: { createdAt: "asc" },
+          },
         },
-      },
+      });
+
+      if (contentChanged) {
+        const referenced = extractReferencedImageIds(
+          typeof updated.content === "string" ? updated.content : null
+        );
+        // Delete image rows belonging to this note that aren't referenced.
+        const orphans = updated.images.filter(
+          (img) => !referenced.has(img.id.toLowerCase())
+        );
+        if (orphans.length > 0) {
+          await tx.noteImage.deleteMany({
+            where: { id: { in: orphans.map((o) => o.id) } },
+          });
+          // Reflect the cleanup in the returned note payload.
+          const orphanIds = new Set(orphans.map((o) => o.id));
+          updated.images = updated.images.filter(
+            (img) => !orphanIds.has(img.id)
+          );
+        }
+      }
+
+      return updated;
     });
     return json({ note });
   } catch {

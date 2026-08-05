@@ -67,3 +67,21 @@ export function toDateInputValue(
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+// Matches the UUID we generate for NoteImage rows inside src/href like
+// "/api/images/<uuid>". UUID v4 pattern (and the relaxed uuid() default).
+const IMAGE_URL_RE = /\/api\/images\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/g;
+
+/**
+ * Extract the set of NoteImage IDs referenced by a note's HTML content.
+ * Used to garbage-collect orphaned NoteImage rows when content no longer
+ * references them (e.g. after the user deletes an image in the editor).
+ */
+export function extractReferencedImageIds(html: string | null): Set<string> {
+  const ids = new Set<string>();
+  if (!html) return ids;
+  for (const match of html.matchAll(IMAGE_URL_RE)) {
+    ids.add(match[1].toLowerCase());
+  }
+  return ids;
+}
