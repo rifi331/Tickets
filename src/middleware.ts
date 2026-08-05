@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getIronSession } from "iron-session";
-import { sessionOptions, AppSession } from "@/lib/session";
+import { getSessionOptions, AppSession } from "@/lib/session";
+
+// NOTE: getSessionOptions() reads env vars lazily (at request time), so it is
+// safe to call here even though middleware runs in the edge runtime.
 
 // Routes that don't require authentication.
 const PUBLIC_PATHS = ["/login"];
@@ -22,7 +25,11 @@ export async function middleware(req: NextRequest) {
   // Read session from the request cookie without touching next/headers
   // (not available in middleware runtime).
   const res = NextResponse.next();
-  const session = await getIronSession<AppSession>(req, res, sessionOptions);
+  const session = await getIronSession<AppSession>(
+    req,
+    res,
+    getSessionOptions()
+  );
 
   if (!session.user) {
     // For API routes, return JSON 401; for pages, redirect to /login.

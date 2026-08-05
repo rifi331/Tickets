@@ -5,24 +5,11 @@ export interface AppSession {
   user?: string;
 }
 
-export const sessionOptions: SessionOptions = {
-  password: getSessionSecret(),
-  cookieName: "tickets_session",
-  cookieOptions: {
-    httpOnly: true,
-    sameSite: "lax",
-    // Secure cookies require HTTPS. Allow override for local testing over HTTP.
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7, // 7 days
-  },
-};
+export const COOKIE_NAME = "tickets_session";
 
-function getSessionSecret(): string {
+function resolveSecret(): string {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
-    // Fall back to a throwaway value in dev so the app still boots; in
-    // production a short secret is a fatal config error.
     if (process.env.NODE_ENV === "production") {
       throw new Error(
         "SESSION_SECRET must be set to a string of at least 32 characters in production."
@@ -33,8 +20,31 @@ function getSessionSecret(): string {
   return secret;
 }
 
+// Build the session options lazily (per-call) instead of at module load time.
+// This is critical: during `next build` the runtime env vars (SESSION_SECRET,
+// COOKIE_SECURE, NODE_ENV) are NOT available, so eagerly evaluating them would
+// throw a build-time error. Resolving them inside a function defers the work to
+// request time, where the real environment is present.
+export function getSessionOptions(): SessionOptions {
+  const secure = process.env.COOKIE_SECURE === "true";
+  return {
+    password: resolveSecret(),
+    cookieName: COOKIE_NAME,
+    cookieOptions: {
+      httpOnly: true,
+      sameSite: "lax",
+      // Self-hosted deployments are often plain HTTP on the LAN; gate the
+      // "Secure" cookie flag behind an explicit env var so login works over
+      // HTTP by default. Set COOKIE_SECURE=true behind an HTTPS reverse proxy.
+      secure,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    },
+  };
+}
+
 export async function getSession() {
-  const session = await getIronSession<AppSession>(cookies(), sessionOptions);
+  const session = await getIronSession<AppSession>(cookies(), getSessionOptions());
   return session;
 }
 
