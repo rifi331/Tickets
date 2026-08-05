@@ -23,6 +23,10 @@ RUN apk add --no-cache libc6-compat openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Ensure the public/ directory always exists in the image even if the source
+# checkout has no static assets (avoids a "COPY /app/public: not found" error).
+RUN mkdir -p ./public
+
 # These are required at build time by Next/Prisma. They do NOT need to point
 # at the real database; Prisma only validates the URL shape during generate.
 ENV NEXT_TELEMETRY_DISABLED=1
