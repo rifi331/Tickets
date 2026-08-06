@@ -4,8 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { TaskStatus } from "@prisma/client";
 import type { NoteDetail, NoteSummary } from "@/lib/types";
 import { normalizeNote, normalizeNoteDetail } from "@/lib/types";
+import { TASK_STATUSES, STATUS_META } from "@/lib/utils";
 import StatusBadge from "./StatusBadge";
 import NoteDetailPanel from "./NoteDetailPanel";
+
+// "ALL" is a UI-only status filter value (not a TaskStatus).
+type StatusFilter = "ALL" | TaskStatus;
 
 export default function Workspace({
   initialNotes,
@@ -24,6 +28,10 @@ export default function Workspace({
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [creating, setCreating] = useState(false);
 
+  // Sidebar filters.
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [assigneeQuery, setAssigneeQuery] = useState("");
+
   // Re-sort notes by updatedAt desc whenever they change.
   const sortedNotes = useMemo(() => {
     return [...notes].sort((a, b) => {
@@ -32,6 +40,19 @@ export default function Workspace({
       return (Number.isNaN(tb) ? 0 : tb) - (Number.isNaN(ta) ? 0 : ta);
     });
   }, [notes]);
+
+  // Apply the active status + assignee filters for the sidebar list.
+  const filteredNotes = useMemo(() => {
+    const q = assigneeQuery.trim().toLowerCase();
+    return sortedNotes.filter((n) => {
+      if (statusFilter !== "ALL" && n.status !== statusFilter) return false;
+      if (q) {
+        const a = (n.assignee ?? "").toLowerCase();
+        if (!a.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [sortedNotes, statusFilter, assigneeQuery]);
 
   // Keep selection valid.
   useEffect(() => {
@@ -106,13 +127,15 @@ export default function Workspace({
 
   const handleDeleted = useCallback(
     (deletedId: string) => {
+      const wasSelected = selectedId === deletedId;
       setNotes((prev) => prev.filter((n) => n.id !== deletedId));
-      if (selectedId === deletedId) {
-        const remaining = sortedNotes.filter((n) => n.id !== deletedId);
-        setSelectedId(remaining[0]?.id ?? null);
+      if (wasSelected) {
+        // Pick the next visible note (post-delete snapshot of the filter).
+        const visible = filteredNotes.filter((n) => n.id !== deletedId);
+        setSelectedId(visible[0]?.id ?? null);
       }
     },
-    [selectedId, sortedNotes]
+    [selectedId, filteredNotes]
   );
 
   const handleSidebarDelete = async (id: string, title: string) => {
@@ -159,7 +182,7 @@ export default function Workspace({
       <div className="flex-1 min-h-0 flex">
         {/* Sidebar */}
         <aside className="w-80 shrink-0 border-r border-slate-200 bg-slate-50 flex flex-col">
-          <div className="p-3 border-b border-slate-200">
+          <div className="p-3 border-b border-slate-200 space-y-2.5">
             <button
               type="button"
               onClick={handleCreate}
@@ -168,15 +191,46 @@ export default function Workspace({
             >
               <span className="text-base leading-none">+</span> New Note
             </button>
+
+            {/* Status filter */}
+            <div className="flex items-center gap-1" role="group" aria-label="Filter by status">
+              <FilterChip
+                label="All"
+                active={statusFilter === "ALL"}
+                onClick={() => setStatusFilter("ALL")}
+              />
+              {TASK_STATUSES.map((s) => (
+                <FilterChip
+                  key={s}
+                  label={STATUS_META[s].label}
+                  active={statusFilter === s}
+                  onClick={() => setStatusFilter(s)}
+                />
+              ))}
+            </div>
+
+            {/* Assignee search */}
+            <input
+              type="search"
+              value={assigneeQuery}
+              onChange={(e) => setAssigneeQuery(e.target.value)}
+              placeholder="Search assignee…"
+              aria-label="Search assignee"
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/30 outline-none"
+            />
           </div>
           <div className="flex-1 overflow-y-auto">
-            {sortedNotes.length === 0 ? (
+            {notes.length === 0 ? (
               <p className="text-sm text-slate-500 text-center mt-8 px-4">
                 No notes yet. Click <strong>+ New Note</strong> to begin.
               </p>
+            ) : filteredNotes.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center mt-8 px-4">
+                No notes match the current filters.
+              </p>
             ) : (
               <ul className="divide-y divide-slate-100">
-                {sortedNotes.map((n) => (
+                {filteredNotes.map((n) => (
                   <li key={n.id}>
                     <div
                       className={`group relative px-3 py-3 cursor-pointer hover:bg-white transition-colors ${
@@ -292,5 +346,30 @@ function EmptyState({
         </button>
       </div>
     </div>
+  );
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex-1 rounded-md px-2 py-1 text-xs font-medium border transition-colors ${
+        active
+          ? "bg-brand-600 border-brand-600 text-white"
+          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+      }`}
+    >
+      {label}
+    </button>
   );
 }
