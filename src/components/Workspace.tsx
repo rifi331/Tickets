@@ -8,9 +8,6 @@ import { TASK_STATUSES, STATUS_META } from "@/lib/utils";
 import StatusBadge from "./StatusBadge";
 import NoteDetailPanel from "./NoteDetailPanel";
 
-// "ALL" is a UI-only status filter value (not a TaskStatus).
-type StatusFilter = "ALL" | TaskStatus;
-
 export default function Workspace({
   initialNotes,
   user,
@@ -29,8 +26,21 @@ export default function Workspace({
   const [creating, setCreating] = useState(false);
 
   // Sidebar filters.
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  // Status filter is multi-select: a toggleable set of statuses. An EMPTY set
+  // means "no status filter" (show all). Toggling a status adds/removes it.
+  const [statusFilter, setStatusFilter] = useState<Set<TaskStatus>>(
+    () => new Set()
+  );
   const [assigneeQuery, setAssigneeQuery] = useState("");
+
+  const toggleStatus = useCallback((s: TaskStatus) => {
+    setStatusFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(s)) next.delete(s);
+      else next.add(s);
+      return next;
+    });
+  }, []);
 
   // Re-sort notes by updatedAt desc whenever they change.
   const sortedNotes = useMemo(() => {
@@ -42,10 +52,11 @@ export default function Workspace({
   }, [notes]);
 
   // Apply the active status + assignee filters for the sidebar list.
+  // An empty statusFilter means "no status filter" (show all statuses).
   const filteredNotes = useMemo(() => {
     const q = assigneeQuery.trim().toLowerCase();
     return sortedNotes.filter((n) => {
-      if (statusFilter !== "ALL" && n.status !== statusFilter) return false;
+      if (statusFilter.size > 0 && !statusFilter.has(n.status)) return false;
       if (q) {
         const a = (n.assignee ?? "").toLowerCase();
         if (!a.includes(q)) return false;
@@ -192,19 +203,14 @@ export default function Workspace({
               <span className="text-base leading-none">+</span> New Note
             </button>
 
-            {/* Status filter */}
+            {/* Status filter (multi-select; empty = show all) */}
             <div className="flex items-center gap-1" role="group" aria-label="Filter by status">
-              <FilterChip
-                label="All"
-                active={statusFilter === "ALL"}
-                onClick={() => setStatusFilter("ALL")}
-              />
               {TASK_STATUSES.map((s) => (
                 <FilterChip
                   key={s}
                   label={STATUS_META[s].label}
-                  active={statusFilter === s}
-                  onClick={() => setStatusFilter(s)}
+                  active={statusFilter.has(s)}
+                  onClick={() => toggleStatus(s)}
                 />
               ))}
             </div>

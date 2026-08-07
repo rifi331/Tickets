@@ -3,4 +3,4 @@
 // Bumped per the spec:
 //   - patch fix  -> 0.1.x
 //   - new feature-> 0.2.0
-export const APP_VERSION = "v0.2.0";
+export const APP_VERSION = "v0.2.1";
